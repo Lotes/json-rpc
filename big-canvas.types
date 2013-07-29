@@ -1,0 +1,74 @@
+enum CommandType {
+	BRUSH, ERASER, UNDO, REDO
+}
+
+//type Color = String in /#[0-9a-fA-F]{6}/;
+type Width = Integer in 1..100
+type Opacity = Float in 0.0..1.0
+type SessionId = String in /[a-zA-Z0-9_]{24}/
+
+struct Point {
+	x: BigInteger;
+	y: BigInteger;
+}
+
+struct TileId {
+	tileX: BigInteger;
+	tileY: BigInteger;
+}
+
+type Stroke = list of Point;
+type ActionIds = list of BigInteger;
+type TileIds = list of TileId;
+
+//-zur Übertragung der Commands wichtig
+struct Command {
+	type: CommandType match {
+		case BRUSH:
+			color: Color;
+			width: Width;
+			opacity: Opacity;
+			stroke: Stroke;
+		case ERASER:
+			width: Width;
+			opacity: Opacity;
+			stroke: Stroke;
+		case UNDO:
+			actionId: BigInteger;
+			//geht nur wenn der predecessor der Action != null und Action.undone==true ist
+		case REDO:	
+			actionId: BigInteger;
+			//geht nur wenn der successor der Action != null und Action.undone==false ist
+	};
+}
+
+//-wird in private/actions/XXX gespeichert --> XXX ist die Id: BigInteger
+struct Action {
+	command: Command;
+	undone: Boolean;
+	userId: BigInteger;
+	tileIds: TileIds; //affected tiles
+}
+
+//-wird in private/images/XXX gespeichert --> XXX ist die Id: BigInteger
+struct Image {
+	position: Point;
+	width: Integer in 1..4096;
+	height: Integer in 1..4096;
+}
+
+//-wird in private/tiles/XXX_YYY gespeichert --> XXX ist die x-Koordinate, YYY die y-Koordinate (beides BigInteger)
+struct Tile {
+	actionIds: ActionIds; //actions that changed this tile in the order in which they were applied
+}
+
+//wird in private/users/XXX gespeichert, wobei XXX die UserId ist (: BigInteger)
+struct User {
+	name: String;
+}
+
+//wird in private/sessions/XXX gespeichert, wobei XXX die SessionId ist (: SessionId)
+struct Session {
+	userId: BigInteger;
+	expires: Date; //oder Integer?
+}

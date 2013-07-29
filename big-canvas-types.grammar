@@ -1,0 +1,155 @@
+start
+  = _ decls:(ds:definition _  { return ds; } )* { return decls; }
+
+identifier
+  = c:[a-zA-Z_] cs:[a-zA-Z_0-9]* { return c+cs.join(""); }
+
+identifiers
+  = id:identifier ids:(_ "," _ s:identifier { return s; })*
+    {
+		ids.unshift(id);
+		return ids;
+	}
+
+/* === Types === */
+type
+  = t:(
+      primitiveType 
+      / id:identifier { return {typeKind: "name", type: id };} 
+	) res:(_ "in" __ restriction)? 
+	{ 
+	  if(res!==undefined)
+		t.restriction = res;
+	  return t;
+	}
+
+restriction
+  = from:value _ ".." _ to:value { 
+      return {
+	    restrictionKind: "range", 
+		from: from, 
+		to: to
+      }; 
+	}
+ //TODO regular expression restriction
+	
+	
+primitiveType
+  = "Integer" { return {typeKind: "primitive", type: "Integer" };}
+  / "String"  { return {typeKind: "primitive", type: "String" };}
+  / "Boolean" { return {typeKind: "primitive", type: "Boolean" };}
+  / "Float"   { return {typeKind: "primitive", type: "Float" };}
+  
+/* Match-Clause*/  
+matchClause
+  = "match" _ "{" 
+      _ cs:(caseClause)* d:(_ dc:defaultClause {return dc;})? _
+    "}"
+	{
+		cs.push(d);
+		return cs;
+	}
+
+defaultClause
+  = "default" _ "=>" _ as:attributes _ 
+    {
+		return {
+			value: null,
+			members: as
+		};
+	}
+	
+caseClause
+  = "case" __ value:value _ "=>"
+       _ as:attributes _
+	{
+		return {
+			value: value,
+			members: as
+		};
+	}
+
+value
+  = variableValue
+  / numericValue
+  
+variableValue
+  = id:identifier 
+    { 
+	  return {
+		valueKind: "constant",
+		name: id
+	  };
+	}
+  
+numericValue
+  = number:[0-9]+ { return number.join(""); }  
+
+/* === Definitions === */
+definition
+  = enumDefinition
+  / aliasDefinition
+  / structDefintion
+  
+attribute
+  = id:identifier _ ":" _ type:type _ 
+    match:(mc:matchClause _ {return mc; })? ";" 
+    { 
+	  var r = {
+		memberKind: "attribute",
+        name: id,
+		type: type
+	  };
+	  if(match !== "") 
+		r.match = match;
+	  return r;
+	}  
+
+attributes
+  = (_ m:attribute { return m; })*
+  
+structDefintion
+  = "struct" __ name:identifier _ "{" 
+       _ as:attributes _    
+    "}"  
+    {
+		return {
+			typeKind: "struct",
+			name: name,
+			members: as
+		};
+    }
+  
+aliasDefinition
+  = "type" __ name:identifier _ "=" _ type:type
+    { 
+      return {
+        typeKind: "alias",
+        name: name,
+        alias: type
+      }; 
+    }
+
+enumDefinition
+  = "enum" __ name:identifier _ "{" 
+       _ ids:identifiers _
+    "}"
+    {
+      return {
+        typeKind: "enum",
+        name: name,
+        values: ids
+      };
+    }
+
+/* === Whitespaces === */
+_
+  = whitespace*
+  
+__
+  = whitespace+
+    
+whitespace
+  = [" "\n\t\r]
+  / "//" [^\r\n]*
+  / "/*" [^"*/"]* "*/"
