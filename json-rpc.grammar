@@ -23,27 +23,34 @@ type
   / t:(
       primitiveType 
       / id:identifier { return {typeKind: "name", type: id };} 
-    ) res:(_ "in" __ r:restriction { return r; })? 
+    )
     { 
-      if(res)
-        t.restriction = res;
       return t;
     }
 
 restriction
-  = from:value _ ".." _ to:value { 
+  = from:value _ ".." _ to:value 
+    { 
       return {
         restrictionKind: "range", 
         from: from, 
         to: to
       }; 
-    }   
+    }  
+  / r:regex    
+    { 
+      return {
+        restrictionKind: "regex", 
+        regex: r
+      }; 
+    }  
     
 primitiveType
   = "Integer" { return {typeKind: "primitive", type: "Integer" };}
   / "String"  { return {typeKind: "primitive", type: "String" };}
   / "Boolean" { return {typeKind: "primitive", type: "Boolean" };}
   / "Float"   { return {typeKind: "primitive", type: "Float" };}
+  / "Void"    { return {typeKind: "primitive", type: "Void" };}
   
 /* Match-Clause*/  
 matchClause
@@ -78,6 +85,7 @@ caseClause
 value
   = variableValue
   / numericValue
+  / booleanValue
   
 variableValue
   = id:identifier 
@@ -85,6 +93,22 @@ variableValue
       return {
         valueKind: "constant",
         name: id
+      };
+    }
+    
+booleanValue
+  = "true"
+    { 
+      return {
+        valueKind: "boolean",
+        value: true
+      };
+    }
+  / "false"
+    { 
+      return {
+        valueKind: "boolean",
+        value: false
       };
     }
   
@@ -95,7 +119,7 @@ numericValue
       frac = frac || 0;
       return {
         valueKind: "number",
-        number: pre + frac
+        value: pre + frac
       };
     }
  
@@ -104,6 +128,7 @@ definition
   = enumDefinition
   / aliasDefinition
   / structDefintion
+  / interfaceDefinition
   
 attribute
   = id:identifier _ ":" _ type:type _ 
@@ -122,6 +147,59 @@ attribute
 attributes
   = (_ m:attribute { return m; })*
   
+interfaces
+  = (_ inf:interface { return inf; })*
+  
+interface
+  = functionInterface
+  / eventInterface
+
+formalParameter
+  = id:identifier _ ":" _ type:type
+    {
+      return {
+        name: id,
+        type: type
+      };
+    }  
+  
+formalParameters
+  = ps:(f:formalParameter 
+      fs:(_ "," _ s:formalParameter { return s; })*
+        {
+          fs.unshift(f);
+          return fs;
+        }
+      )?
+    {
+      return ps || [];
+    }
+  
+functionInterface
+  = "function" __ name:identifier 
+    _ "(" _ params:formalParameters _ ")" 
+    ret:(_ ":" _ t:type {return t; })?
+    _ ";"
+    {
+      return {
+        interfaceKind: "function",
+        name: name,
+        parameters: params,
+        returnType: ret || undefined
+      };
+    }
+     
+eventInterface
+  = "event" __ name:identifier 
+    _ "(" _ params:formalParameters _ ")" _ ";" 
+    {
+      return {
+        interfaceKind: "event",
+        name: name,
+        parameters: params
+      };
+    }
+    
 structDefintion
   = "struct" __ name:identifier _ "{" 
        _ as:attributes _    
@@ -136,11 +214,13 @@ structDefintion
   
 aliasDefinition
   = "type" __ name:identifier _ "=" _ type:type
+    res:(_ "in" __ r:restriction { return r; })? 
     { 
       return {
         typeKind: "alias",
         name: name,
-        alias: type
+        alias: type,
+        restriction: res || undefined
       }; 
     }
 
@@ -156,6 +236,18 @@ enumDefinition
       };
     }
 
+interfaceDefinition
+  = "interface" __ name:identifier _ "{"
+      _ ins:interfaces _
+    "}"
+    {
+      return {
+        typeKind: "interface",
+        name: name,
+        interfaces: ins
+      };
+    }
+    
 /* === Whitespaces === */
 _
   = whitespace*
@@ -167,3 +259,66 @@ whitespace
   = [" "\n\t\r]
   / "//" [^\r\n]*
   / "/*" [^"*/"]* "*/"
+  
+/* regualar expressions */
+SourceCharacter
+  = .
+
+LineTerminator
+  = [\n\r\u2028\u2029]
+
+regex
+  = "/" body:RegularExpressionBody "/" 
+    flags:RegularExpressionFlags 
+    {
+      return "/"+body+"/"+flags;
+    }
+
+RegularExpressionBody
+  = char_:RegularExpressionFirstChar chars:RegularExpressionChars    {
+      return char_ + chars;
+    }
+
+RegularExpressionChars
+  = chars:RegularExpressionChar* { return chars.join(""); }
+
+RegularExpressionFirstChar
+  = ![*\\/[] char_:RegularExpressionNonTerminator { return char_; }
+  / RegularExpressionBackslashSequence
+  / RegularExpressionClass
+
+RegularExpressionChar
+  = ![\\/[] char_:RegularExpressionNonTerminator { return char_; }
+  / RegularExpressionBackslashSequence
+  / RegularExpressionClass
+
+/*
+ * This rule contains an error in the specification: "NonTerminator" instead of
+ * "RegularExpressionNonTerminator".
+ */
+RegularExpressionBackslashSequence
+  = "\\" char_:RegularExpressionNonTerminator { return "\\" + char_; }
+
+RegularExpressionNonTerminator
+  = !LineTerminator char_:SourceCharacter { return char_; }
+
+RegularExpressionClass
+  = "[" chars:RegularExpressionClassChars "]" { return "[" + chars + "]"; }
+
+RegularExpressionClassChars
+  = chars:RegularExpressionClassChar* { return chars.join(""); }
+
+RegularExpressionClassChar
+  = ![\]\\] char_:RegularExpressionNonTerminator { return char_; }
+  / RegularExpressionBackslashSequence
+
+RegularExpressionFlags
+  = parts:IdentifierPart* { return parts.join(""); }
+  
+IdentifierStart
+  = [a-zA-Z]
+  / "$"
+  / "_"
+  
+IdentifierPart
+  = IdentifierStart
