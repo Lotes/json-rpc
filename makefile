@@ -1,7 +1,7 @@
 all: compile run
 
 compile:
-	pegjs --track-line-and-column big-canvas-types.grammar big-canvas-types.js
+	pegjs --track-line-and-column json-rpc.grammar json-rpc-parser.js
 
 run:
-	node big-canvas-test.js
+	node test.js

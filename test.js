@@ -1,4 +1,4 @@
-var parser = require("./big-canvas-types");
+var Generator = require("./json-rpc-generator");
 var fs = require("fs");
 
 fs.readFile("big-canvas.types", "utf8", function (err,data) {
@@ -6,7 +6,9 @@ fs.readFile("big-canvas.types", "utf8", function (err,data) {
     return console.log(err);
   }
   try {
-    console.log(JSON.stringify(parser.parse(data), null, 2));
+    var generator = new Generator(data);
+    //generator.ServerStub
+    //generator.ClientStub
   } catch(ex) {
     console.log(ex);
   }

@@ -5,7 +5,7 @@ enum CommandType {
 //type Color = String in /#[0-9a-fA-F]{6}/;
 type Width = Integer in 1..100
 type Opacity = Float in 0.0..1.0
-type SessionId = String in /[a-zA-Z0-9_]{24}/
+//type SessionId = String in /[a-zA-Z0-9_]{24}/
 
 struct Point {
 	x: BigInteger;
@@ -17,9 +17,9 @@ struct TileId {
 	tileY: BigInteger;
 }
 
-type Stroke = list of Point;
-type ActionIds = list of BigInteger;
-type TileIds = list of TileId;
+type Stroke = list of Point
+type ActionIds = list of BigInteger
+type TileIds = list of TileId
 
 //-zur Übertragung der Commands wichtig
 struct Command {

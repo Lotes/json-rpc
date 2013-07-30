@@ -7,33 +7,38 @@ identifier
 identifiers
   = id:identifier ids:(_ "," _ s:identifier { return s; })*
     {
-		ids.unshift(id);
-		return ids;
-	}
+        ids.unshift(id);
+        return ids;
+    }
 
 /* === Types === */
 type
-  = t:(
+  = "list" __ "of" __ t:type 
+    {
+      return {
+        typeKind: "list",
+        type: t
+      };
+    }
+  / t:(
       primitiveType 
       / id:identifier { return {typeKind: "name", type: id };} 
-	) res:(_ "in" __ restriction)? 
-	{ 
-	  if(res!==undefined)
-		t.restriction = res;
-	  return t;
-	}
+    ) res:(_ "in" __ r:restriction { return r; })? 
+    { 
+      if(res)
+        t.restriction = res;
+      return t;
+    }
 
 restriction
   = from:value _ ".." _ to:value { 
       return {
-	    restrictionKind: "range", 
-		from: from, 
-		to: to
+        restrictionKind: "range", 
+        from: from, 
+        to: to
       }; 
-	}
- //TODO regular expression restriction
-	
-	
+    }   
+    
 primitiveType
   = "Integer" { return {typeKind: "primitive", type: "Integer" };}
   / "String"  { return {typeKind: "primitive", type: "String" };}
@@ -45,29 +50,30 @@ matchClause
   = "match" _ "{" 
       _ cs:(caseClause)* d:(_ dc:defaultClause {return dc;})? _
     "}"
-	{
-		cs.push(d);
-		return cs;
-	}
+    {
+        if(d)
+          cs.push(d);
+        return cs;
+    }
 
 defaultClause
-  = "default" _ "=>" _ as:attributes _ 
+  = "default" _ ":" _ as:attributes _ 
     {
-		return {
-			value: null,
-			members: as
-		};
-	}
-	
+        return {
+            value: null,
+            members: as
+        };
+    }
+    
 caseClause
-  = "case" __ value:value _ "=>"
+  = "case" __ value:value _ ":"
        _ as:attributes _
-	{
-		return {
-			value: value,
-			members: as
-		};
-	}
+    {
+        return {
+            value: value,
+            members: as
+        };
+    }
 
 value
   = variableValue
@@ -76,15 +82,23 @@ value
 variableValue
   = id:identifier 
     { 
-	  return {
-		valueKind: "constant",
-		name: id
-	  };
-	}
+      return {
+        valueKind: "constant",
+        name: id
+      };
+    }
   
 numericValue
-  = number:[0-9]+ { return number.join(""); }  
-
+  = pre:(number:[0-9]+ { return parseInt(number.join(""), 10); })
+    frac:("." digits:[0-9]+ { return parseFloat("0."+digits.join("")); })?
+    { 
+      frac = frac || 0;
+      return {
+        valueKind: "number",
+        number: pre + frac
+      };
+    }
+ 
 /* === Definitions === */
 definition
   = enumDefinition
@@ -95,15 +109,15 @@ attribute
   = id:identifier _ ":" _ type:type _ 
     match:(mc:matchClause _ {return mc; })? ";" 
     { 
-	  var r = {
-		memberKind: "attribute",
+      var r = {
+        memberKind: "attribute",
         name: id,
-		type: type
-	  };
-	  if(match !== "") 
-		r.match = match;
-	  return r;
-	}  
+        type: type
+      };
+      if(match !== "") 
+        r.match = match;
+      return r;
+    }  
 
 attributes
   = (_ m:attribute { return m; })*
@@ -113,11 +127,11 @@ structDefintion
        _ as:attributes _    
     "}"  
     {
-		return {
-			typeKind: "struct",
-			name: name,
-			members: as
-		};
+        return {
+            typeKind: "struct",
+            name: name,
+            members: as
+        };
     }
   
 aliasDefinition
