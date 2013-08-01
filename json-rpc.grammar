@@ -13,16 +13,9 @@ identifiers
 
 /* === Types === */
 type
-  = "list" __ "of" __ t:type 
-    {
-      return {
-        typeKind: "list",
-        type: t
-      };
-    }
-  / t:(
+  = t:(
       primitiveType 
-      / id:identifier { return {typeKind: "name", type: id };} 
+      / id:identifier { return id; } 
     )
     { 
       return t;
@@ -46,11 +39,11 @@ restriction
     }  
     
 primitiveType
-  = "Integer" { return {typeKind: "primitive", type: "Integer" };}
-  / "String"  { return {typeKind: "primitive", type: "String" };}
-  / "Boolean" { return {typeKind: "primitive", type: "Boolean" };}
-  / "Float"   { return {typeKind: "primitive", type: "Float" };}
-  / "Void"    { return {typeKind: "primitive", type: "Void" };}
+  = "Integer" { return "Integer"; }
+  / "String"  { return "String"; }
+  / "Boolean" { return "Boolean"; }
+  / "Float"   { return "Float"; }
+  / "Void"    { return "Void"; }
   
 /* Match-Clause*/  
 matchClause
@@ -213,15 +206,28 @@ structDefintion
     }
   
 aliasDefinition
-  = "type" __ name:identifier _ "=" _ type:type
-    res:(_ "in" __ r:restriction { return r; })? 
+  = "type" __ name:identifier _ "=" _ 
+    alias:(
+      "list" __ "of" __ t:type    
+      {
+        return {
+          isList: true,
+          elementType: t
+        };   
+      }
+      / type:type res:(_ "in" __ r:restriction { return r; })? 
+      {
+        return {
+          isList: false,
+          alias: type,
+          restriction: res || undefined
+        };   
+      }
+    )
     { 
-      return {
-        typeKind: "alias",
-        name: name,
-        alias: type,
-        restriction: res || undefined
-      }; 
+      alias.typeKind = "alias";
+      alias.name = name;
+      return alias; 
     }
 
 enumDefinition

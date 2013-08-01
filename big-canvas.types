@@ -1,6 +1,6 @@
 /* basic types */
-type BigInteger = String in /[+-]?[1-9][0-9]*/
-type Color = String in /#[0-9a-fA-F]{6}/
+type BigInteger = String in /^[+-]?[1-9][0-9]*$/
+type Color = String in /^#[0-9a-fA-F]{6}$/
 
 struct Point {
 	x: BigInteger;
@@ -8,11 +8,11 @@ struct Point {
 }
 
 /* tiles*/
-struct TileLocation {
+/*struct TileLocation {
 	row: BigInteger;
 	column: BigInteger;
 }
-type TileLocations = list of TileLocation
+type TileLocations = list of TileLocation*/
 
 /* action */
 enum ActionType {
@@ -21,12 +21,12 @@ enum ActionType {
 }
 
 type StrokeWidth = Integer in 1..100
-type StrokeOpacity = Float in 0.0..1.0
-type Stroke = list of Point
+/*type StrokeOpacity = Float in 0.0..1.0
+type Stroke = list of Point*/
 type ActionId = BigInteger
 type ActionIds = list of ActionId
 
-struct Action {
+/*struct Action {
 	type: ActionType match {
 		case BRUSH:
 			color: Color;
@@ -45,7 +45,7 @@ struct StoredAction {
   undone: Boolean;
   userId: UserId;
   region: TileLocations;
-}
+}*/
 
 /* window */
 type WindowWidth = Integer in 1..4096
@@ -55,18 +55,18 @@ type WindowHeight = Integer in 1..4096
 type UserId = BigInteger
 
 /* images */
-type ImageWidth = Integer in 1..4096
+/*type ImageWidth = Integer in 1..4096
 type ImageHeight = Integer in 1..4096
 struct Image {
 	position: Point;
 	width: ImageWidth;
 	height: ImageHeight;
-}
+}*/
 
 /* interface */
 interface Main {
   function setWindow(position : Point, width: WindowWidth, height: WindowHeight);
-  function sendAction(action: Action);
+  function sendAction(action: Action): ActionId;
   event onAction(userId: UserId, actionId: ActionId, action: Action, region: TileLocations);
   function getName(userId: UserId): String;
   function setName(name: String);
