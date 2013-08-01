@@ -149,10 +149,10 @@ var Generator = function(schemeText) {
                 };                
                 var casesChecker = [];
                 if(member.match) {
-                  for(var k=0; k<match.length; k++) {
+                  for(var k=0; k<member.match.length; k++) {
                     var match = member.match[k];
                     var caseChecker = {};
-                    if(match.value != null)
+                    if(match.value != null) {
                       switch(match.value.valueKind) {
                         case "constant": 
                           if(!memberType.validate(match.value.name))
@@ -164,7 +164,9 @@ var Generator = function(schemeText) {
                             throw new Error("'"+match.value.name+"' is not a member of type '"+member.type+"'.");
                           caseChecker.value = match.value.value;
                       }
+                    }
                     caseChecker.membersChecker = typeCheckMembers(match.members);
+                    casesChecker.push(caseChecker);
                   }
                 }
                 memberChecker.cases = casesChecker;

@@ -14,6 +14,9 @@ struct TileLocation {
 }
 type TileLocations = list of TileLocation
 
+/* users */
+type UserId = BigInteger
+
 /* action */
 enum ActionType {
 	BRUSH, 
@@ -50,9 +53,6 @@ struct StoredAction {
 /* window */
 type WindowWidth = Integer in 1..4096
 type WindowHeight = Integer in 1..4096
-
-/* users */
-type UserId = BigInteger
 
 /* images */
 type ImageWidth = Integer in 1..4096
