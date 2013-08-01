@@ -8,18 +8,16 @@ struct Point {
 }
 
 /* tiles*/
-struct TileId {
-	tileX: BigInteger;
-	tileY: BigInteger;
+struct TileLocation {
+	row: BigInteger;
+	column: BigInteger;
 }
-type TileIds = list of TileId
+type TileLocations = list of TileLocation
 
 /* action */
 enum ActionType {
 	BRUSH, 
-  ERASER, 
-  UNDO, 
-  REDO
+  ERASER
 }
 
 type StrokeWidth = Integer in 1..100
@@ -39,11 +37,14 @@ struct Action {
 			width: StrokeWidth;
 			opacity: StrokeOpacity;
 			stroke: Stroke;
-		case UNDO:
-			actionId: ActionId;
-		case REDO:	
-			actionId: ActionId;
 	};
+}
+
+struct StoredAction {
+  action: Action;
+  undone: Boolean;
+  userId: UserId;
+  region: TileLocations;
 }
 
 /* window */
@@ -66,7 +67,9 @@ struct Image {
 interface Main {
   function setWindow(position : Point, width: WindowWidth, height: WindowHeight);
   function sendAction(action: Action);
-  event onAction(userId: UserId, actionId: ActionId, action: Action, region: TileIds);
+  event onAction(userId: UserId, actionId: ActionId, action: Action, region: TileLocations);
   function getName(userId: UserId): String;
   function setName(name: String);
+  function undo(actionId: ActionId);
+  function redo(actionId: ActionId);
 }
