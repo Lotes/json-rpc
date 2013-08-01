@@ -10,24 +10,28 @@ var Generator = function(schemeText) {
     var types = {
       Boolean: {
         baseType: "BOOLEAN",
+        name: "Boolean",
         validate: function(obj) { 
           return typeof(obj) === "boolean"; 
         }
       },
       String: {     
         baseType: "STRING",
+        name: "String",
         validate: function(obj) { 
           return typeof(obj) === "string"; 
         }
       },
       Float: {
         baseType: "FLOAT",
+        name: "Float",
         validate: function(obj) { 
           return typeof(obj) === "number"; 
         }
       },
       Integer: {
         baseType: "INTEGER",
+        name: "Integer",
         validate: function(obj) { 
           return typeof(obj) === "number" 
                  && Math.floor(obj) === obj; 
@@ -35,6 +39,7 @@ var Generator = function(schemeText) {
       },
       Void: {
         baseType: "VOID",
+        name: "Void",
         validate: function(obj) { 
           return typeof(obj) === "undefined"; 
         }
@@ -56,6 +61,7 @@ var Generator = function(schemeText) {
           case "enum":
             types[name] = {
               baseType: "STRING",
+              name: name,
               validate: (function(values) {
                 return function(obj) {
                   if(typeof(obj) !== "string")
@@ -73,6 +79,7 @@ var Generator = function(schemeText) {
               var elementType = resolveType(def.elementType);
               types[name] = {
                 baseType: "LIST",
+                name: name,
                 validate: (function(elemType) {
                   return function(obj) {
                     if(typeof(obj) !== "object" || !("length" in obj))
@@ -123,11 +130,77 @@ var Generator = function(schemeText) {
               }
               types[name] = {
                 baseType: baseType,
+                name: name,
                 validate: validate
               };   
             }
             break;
           case "struct":
+            function typeCheckMembers(members) {
+              var checker = [];
+              for(var j=0; j<members.length; j++) {
+                var member = members[j];
+                var memberName = member.name;
+                var memberType = resolveType(member.type);
+                var memberChecker = {
+                  name: memberName,
+                  type: memberType
+                  //cases
+                };                
+                var casesChecker = [];
+                if(member.match) {
+                  for(var k=0; k<match.length; k++) {
+                    var match = member.match[k];
+                    var caseChecker = {};
+                    if(match.value != null)
+                      switch(match.value.valueKind) {
+                        case "constant": 
+                          if(!memberType.validate(match.value.name))
+                            throw new Error("'"+match.value.name+"' is not a member of type '"+member.type+"'.");
+                          caseChecker.value = match.value.name;
+                          break;
+                        case "number":
+                          if(!memberType.validate(match.value.value))
+                            throw new Error("'"+match.value.name+"' is not a member of type '"+member.type+"'.");
+                          caseChecker.value = match.value.value;
+                      }
+                    caseChecker.membersChecker = typeCheckMembers(match.members);
+                  }
+                }
+                memberChecker.cases = casesChecker;
+                checker.push(memberChecker);
+              }
+              return checker;
+            }
+            function validateMembers(checker, object) {
+              for(var m=0; m<checker.length; m++) {
+                var memberChecker = checker[m];
+                if(!(memberChecker.name in object))
+                  return false;
+                var value = object[memberChecker.name];
+                if(!memberChecker.type.validate(value))
+                  return false;
+                for(var n=0; n<memberChecker.cases.length; n++) {
+                  var caseChecker = memberChecker.cases[n];
+                  if(caseChecker.value == value) {
+                    if(!validateMembers(caseChecker.membersChecker, object))
+                      return false;
+                    break;
+                  }
+                }
+              }
+              return true;
+            }
+            var checker = typeCheckMembers(def.members);
+            types[name] = {
+              baseType: "STRUCT",
+              name: name,
+              validate: (function(ch){
+                return function(obj) {
+                  return validateMembers(ch, obj);
+                };
+              })(checker)
+            };
             break;
         }
       }

@@ -22,6 +22,8 @@ fs.readFile("big-canvas.types", "utf8", function (err,data) {
       { type: "StrokeWidth", object: "70", result: false },
       { type: "ActionIds", object: ["70", "-100", "50"], result: true },
       { type: "ActionIds", object: ["70", 50, "+abc"], result: false },
+      { type: "Point", object: {x: "0", y: "-1"}, result: true },
+      { type: "Point", object: {x: 0, y: -1}, result: false },
     ];
     
     for(var i=0; i<testCases.length; i++) {
