@@ -15,6 +15,7 @@ Examples
 ========
 The definition file
 -------------------
+```javascript
   interface Test {
     function add(a: Integer, b: Integer): Integer;
     event onAdd(a: Integer, b: Integer, result: Integer);
@@ -24,16 +25,20 @@ The definition file
     x: BigInteger;
     y: BigInteger;
   }
+```
 
 Create an stub generator
 ------------------------
+```javascript
   //create a stub generator
   var Generator = require("./json-rpc-generator");
   var generator = new Generator(definition);
   //"definition" is the text of the definition file
+```
   
 Object validation
 -----------------
+```javascript
   generator.Types.Point.validate({
     x: "1234",
     y: "5678"
@@ -47,9 +52,11 @@ Object validation
     x: 1234,
     y: 5678
   }); //returns false
+```
   
 Remote Procedure calls
 ----------------------  
+```javascript
   //create client and server stub
   var client = new generator.Interfaces.Test.Client({
     //client-side implementation of all events
@@ -78,4 +85,7 @@ Remote Procedure calls
       console.log(err);
     else
       console.log("Result: "+result);
-  }); //returns "Result: 3"
+  }); 
+  //returns "Result: 3"
+  //and     "EVENT: 1 + 2 = 3"
+```
