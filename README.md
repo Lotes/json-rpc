@@ -27,7 +27,7 @@ The definition file
   }
 ```
 
-Create an stub generator
+Create a stub generator
 ------------------------
 ```javascript
   //create a stub generator
