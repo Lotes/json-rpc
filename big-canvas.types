@@ -73,3 +73,8 @@ interface Main {
   function undo(actionId: ActionId);
   function redo(actionId: ActionId);
 }
+
+interface Test {
+  function add(a: Integer, b: Integer): Integer;
+  event onAdd(a: Integer, b: Integer, result: Integer);
+}

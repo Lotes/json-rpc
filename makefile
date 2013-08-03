@@ -5,3 +5,6 @@ compile:
 
 run:
 	node test.js
+  
+init:
+	npm install backbone underscore

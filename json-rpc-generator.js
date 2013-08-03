@@ -309,7 +309,7 @@ var Generator = function(schemeText) {
                   parameters: paramsList
                 });
               } catch(ex) {
-                callback && callback(ex);
+                callback(ex);
               }
             };
           })(fname, fn);
@@ -331,14 +331,14 @@ var Generator = function(schemeText) {
                   return false;
                 var callback = this.callbacks[seqNo];
                 delete this.callbacks[seqNo];
-                callback && callback(null, obj.returnValue);
+                callback && callback(null, obj["returnValue"]);
                 return true;
               case "eventCall":
                 var eventName = obj.eventName;
                 var params = obj.parameters;
                 if(!(eventName in this.eventHandlers))
                   return false;
-                this.eventHandlers.apply(this, params);
+                this.eventHandlers[eventName].apply(this, params);
                 return true;
             }
           } catch(ex) {
@@ -349,28 +349,125 @@ var Generator = function(schemeText) {
         };
         
         //=== build server ===
+        //create function handlers
         var server = (function(fns) {
           return function(implementations) {
+            var self = this;
             _.extend(this, Backbone.Events);
-            this.functions = {};
+            this.functionHandlers = {};
+            for(var fname in fns) {
+              var fn = fns[fname];
+              if(fn.interfaceKind !== "function")
+                continue;
+              //if event is not implemented, add a dummy implementation
+              if(!(fname in implementations))
+                throw new Error("Please add an implementation for function '"+fname+"'.");                
+              //add event handler
+              this.functionHandlers[fname] = (function(fn, impl) {
+                //compute usage signature
+                var params = [];
+                for(var i=0; i<fn.parameters.length; i++) {
+                  var p = fn.parameters[i];
+                  params.push(p.name+": "+p.type.name);
+                }
+                var usage = "Usage: function "+fname+"("+params.join(", ")+", callback: function(err: Error, result: "+fn.returns.name+"))";
+                //compute stub function            
+                return function() {
+                  if(arguments.length != fn.parameters.length + 1
+                     || typeof(arguments[arguments.length-1]) !== "function")
+                    throw new Error(usage);
+                  var callback = arguments[arguments.length-1];
+                  try {
+                    //validate parameters
+                    var paramsList = [];
+                    for(var i=0; i<fn.parameters.length; i++) {
+                      var formalParam = fn.parameters[i];
+                      var actualParam = arguments[i];
+                      if(!formalParam.type.validate(actualParam))
+                        throw new Error("Invalid argument ("+(i+1)+").");
+                      paramsList.push(actualParam);
+                    }
+                    //validate result
+                    paramsList.push(function(err, result) {
+                      if(err)
+                        callback(err);
+                      else
+                        if(fn.returns.validate(result))
+                          callback(null, result);
+                        else
+                          callback(new Error("Invalid result."));
+                    });
+                    //apply actual function
+                    impl.apply(self, paramsList);
+                  } catch(ex) {
+                    callback(ex);
+                  }
+                };
+              })(fn, implementations[fname]);
+            }
           };          
         })(functions);
+        //create receive-callback mechanism
         server.prototype.receive = function(obj) {
+          var self = this;
           try {
             switch(obj.type) {
               case "functionCall":
                 var seqNo = obj.sequenceNumber;
                 var fname = obj.functionName;
                 var params = obj.parameters;
-                //TODO
+                params.push(function(err, result) {
+                  var answer;
+                  if(err)
+                    answer = {
+                      type: "functionError",
+                      sequenceNumber: seqNo,
+                      errorMessage: err.message
+                    };
+                  else
+                    answer = {
+                      type: "functionReturn",
+                      sequenceNumber: seqNo,
+                      returnValue: result
+                    };
+                  self.trigger("send", answer);
+                });
+                this.functionHandlers[fname].apply(this, params);
                 return true;
             }
           } catch(ex) {
-            console.log(ex);
+            //console.log(ex);
             return false;
           }
           return false;
         };
+        //create event stubs
+        for(var fname in functions) {
+          var fn = functions[fname];
+          if(fn.interfaceKind !== "event")
+            continue;
+          server.prototype[fname] = (function(fname, fn) {
+            return function() {
+              //validate parameters
+              if(arguments.length !== fn.parameters.length)
+                throw new Error("Invalid number of arguments!");
+              var paramsList = [];
+              for(var i=0; i<fn.parameters.length; i++) {
+                var formalParam = fn.parameters[i];
+                var actualParam = arguments[i];
+                if(!formalParam.type.validate(actualParam))
+                  throw new Error("Invalid argument ("+(i+1)+")!");
+                paramsList.push(actualParam);
+              }
+              //send the event
+              return {
+                type: "eventCall",
+                eventName: fname,
+                parameters: paramsList
+              };
+            };
+          })(fname, fn);
+        }
         
         interfaces[name] = {
           Client: client,

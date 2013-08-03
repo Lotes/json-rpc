@@ -58,16 +58,27 @@ fs.readFile("big-canvas.types", "utf8", function (err,data) {
                   +answer+". "+passed+".");
     }
     
-    //client
-    var client = new generator.Interfaces.Main.Client({
-      onAction: function() {}
+    var client = new generator.Interfaces.Test.Client({
+      onAdd: function(a, b, result) { 
+        console.log("EVENT: "+a+" + "+b+" = "+result); 
+      }
     });
-    client.on("send", function(obj) {
-      console.log(obj);
+    var server = new generator.Interfaces.Test.Server({
+      add: function(a, b, callback) { 
+        var result = a + b;
+        var event = server.onAdd(a, b, result);
+        callback(null, result);
+        client.receive(event);
+      }
     });
-    client.getName("123", function(err, result) {
-      console.log("Error: "+err);
-      console.log("Result: "+result);
+    client.on("send", function(obj) { server.receive(obj); });
+    server.on("send", function(obj) { client.receive(obj); });
+    
+    client.add(1, 2, function(err, result) {
+      if(err)
+        console.log(err);
+      else
+        console.log("Result: "+result);
     });
   } catch(ex) {
     console.log(ex);
