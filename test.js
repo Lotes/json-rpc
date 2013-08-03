@@ -47,6 +47,7 @@ fs.readFile("big-canvas.types", "utf8", function (err,data) {
       },
     ];
     
+    //types
     for(var i=0; i<testCases.length; i++) {
       var type = testCases[i].type;
       var object = testCases[i].object;
@@ -57,8 +58,17 @@ fs.readFile("big-canvas.types", "utf8", function (err,data) {
                   +answer+". "+passed+".");
     }
     
-    //generator.ServerStub
-    //generator.ClientStub
+    //client
+    var client = new generator.Interfaces.Main.Client({
+      onAction: function() {}
+    });
+    client.on("send", function(obj) {
+      console.log(obj);
+    });
+    client.getName("123", function(err, result) {
+      console.log("Error: "+err);
+      console.log("Result: "+result);
+    });
   } catch(ex) {
     console.log(ex);
   }

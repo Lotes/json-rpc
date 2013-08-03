@@ -1,13 +1,14 @@
 var parser = require("./json-rpc-parser");
+var Backbone = require("backbone");
+var _ = require("underscore");
 
 var Generator = function(schemeText) {
   try {
     var definitions = parser.parse(schemeText);
     //console.log(JSON.stringify(definitions, null, 2));
         
-    //build types
-    //base type: BOOLEAN, STRING, FLOAT, INTEGER, VOID, STRUCT, LIST
-    var types = {
+    var interfaces = {};
+    var types = { //base type: BOOLEAN, STRING, FLOAT, INTEGER, VOID, STRUCT, LIST
       Boolean: {
         baseType: "BOOLEAN",
         name: "Boolean",
@@ -51,10 +52,20 @@ var Generator = function(schemeText) {
 		  else
 			  throw new Error("Could not resolve type '"+name+"'.");
     } 
+    function resolveParameters(params) {
+      var result = [];
+      for(var i=0; i<params.length; i++)
+        result.push({
+          name: params[i].name,
+          type: resolveType(params[i].type)
+        });
+      return result;
+    }
     for(var i=0; i<definitions.length; i++) {
       var def = definitions[i];
       var name = def.name;
       if(def.typeKind != "interface") {
+        //its an alias, struct or enumeration
         if(name in types)
           throw new Error("Type '"+name+"' already exists!");
         switch(def.typeKind) {
@@ -205,18 +216,172 @@ var Generator = function(schemeText) {
             };
             break;
         }
+      } else {
+        //def is an interface
+        if(name in interfaces)
+          throw new Error("Interface '"+name+"' already exists!");
+        //collect functions/events of interface
+        var functions = {};
+        for(var j=0; j<def.interfaces.length; j++) {
+          var fn = def.interfaces[j];
+          var functionName = fn.name;
+          if(functionName in functions)
+            throw new Error("Function '"+functionName+"' already exists in interface '"+name+"'!");
+          switch(fn.interfaceKind) {
+            case "function":
+              functions[functionName] = {
+                interfaceKind: "function",
+                parameters: resolveParameters(fn.parameters),
+                returns: resolveType(fn.returnType || "Void")
+              };
+              break;
+            case "event":
+              functions[functionName] = {
+                interfaceKind: "event",
+                parameters: resolveParameters(fn.parameters)
+              };
+              break;
+          }
+        }
+        //=== build client ===
+        //add event handler
+        var client = (function(fns) {
+          return function(implementations) {
+            _.extend(this, Backbone.Events);
+            this.sequenceNumber = 0;    
+            this.callbacks = {};
+            //check for event implementations
+            this.eventHandlers = {};
+            for(var fname in fns) {
+              var fn = fns[fname];
+              if(fn.interfaceKind !== "event")
+                continue;
+              //if event is not implemented, add a dummy implementation
+              if(!(fname in implementations)) {
+                console.log("Please add an implementation for event '"+fname+"'.");
+                implementations[fname] = (function(nm) {
+                  return function() {
+                    console.log("Event '"+nm+"' was called!");
+                  };
+                })(fname);
+              }
+              //add event handler
+              this.eventHandlers[fname] = implementations[fname];
+            }
+          };          
+        })(functions);
+        //add function stubs
+        for(var fname in functions) {
+          var fn = functions[fname];
+          if(fn.interfaceKind !== "function")
+            continue;
+          client.prototype[fname] = (function(fname, fn) {
+            //compute usage signature
+            var params = [];
+            for(var i=0; i<fn.parameters.length; i++) {
+              var p = fn.parameters[i];
+              params.push(p.name+": "+p.type.name);
+            }
+            var usage = "Usage: function "+fname+"("+params.join(", ")+", callback: function(err: Error, result: "+fn.returns.name+"))";
+            //compute stub function            
+            return function() {
+              if(arguments.length != fn.parameters.length + 1
+                 || typeof(arguments[arguments.length-1]) !== "function")
+                throw new Error(usage);
+              var callback = arguments[arguments.length-1];
+              try {
+                //validate parameters
+                var paramsList = [];
+                for(var i=0; i<fn.parameters.length; i++) {
+                  var formalParam = fn.parameters[i];
+                  var actualParam = arguments[i];
+                  if(!formalParam.type.validate(actualParam))
+                    throw new Error("Invalid argument ("+(i+1)+").");
+                  paramsList.push(actualParam);
+                }
+                //send remote procedure call
+                var seqNo = this.sequenceNumber++;
+                this.callbacks[seqNo] = callback;
+                this.trigger("send", {
+                  type: "functionCall",
+                  sequenceNumber: seqNo,
+                  functionName: fname,
+                  parameters: paramsList
+                });
+              } catch(ex) {
+                callback && callback(ex);
+              }
+            };
+          })(fname, fn);
+        }
+        client.prototype.receive = function(obj) {
+          try {
+            switch(obj.type) {
+              case "functionError":
+                var seqNo = obj.sequenceNumber;
+                if(!(seqNo in this.callbacks))
+                  return false;
+                var callback = this.callbacks[seqNo];
+                delete this.callbacks[seqNo];
+                callback && callback(new Error(obj.errorMessage));
+                return true;
+              case "functionReturn":
+                var seqNo = obj.sequenceNumber;
+                if(!(seqNo in this.callbacks))
+                  return false;
+                var callback = this.callbacks[seqNo];
+                delete this.callbacks[seqNo];
+                callback && callback(null, obj.returnValue);
+                return true;
+              case "eventCall":
+                var eventName = obj.eventName;
+                var params = obj.parameters;
+                if(!(eventName in this.eventHandlers))
+                  return false;
+                this.eventHandlers.apply(this, params);
+                return true;
+            }
+          } catch(ex) {
+            console.log(ex);
+            return false;
+          }
+          return false;
+        };
+        
+        //=== build server ===
+        var server = (function(fns) {
+          return function(implementations) {
+            _.extend(this, Backbone.Events);
+            this.functions = {};
+          };          
+        })(functions);
+        server.prototype.receive = function(obj) {
+          try {
+            switch(obj.type) {
+              case "functionCall":
+                var seqNo = obj.sequenceNumber;
+                var fname = obj.functionName;
+                var params = obj.parameters;
+                //TODO
+                return true;
+            }
+          } catch(ex) {
+            console.log(ex);
+            return false;
+          }
+          return false;
+        };
+        
+        interfaces[name] = {
+          Client: client,
+          Server: server
+        };
       }
     }
       
     //result
     this.Types = types;
-    /*
-    Result:
-    this.Types.Point.validate(obj) returns Boolean
-              .TileId.validate(obj) ...
-    new this.Interfaces.Main.ServerStub(implementation)
-    new this.Interfaces.Main.ClientStub(implementation)
-    */
+    this.Interfaces = interfaces;
   } catch(ex) {
     console.log(ex);
   }
